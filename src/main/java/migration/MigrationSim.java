@@ -102,7 +102,33 @@ public class MigrationSim {
 
     // lx and ly are old leader's coordinates
     public void assignNewLeader(int group, double lx, double ly) {
-        
+        List<Integer> inRadius = new ArrayList<>();
+        List<Integer> all = new ArrayList<>();
+        for (int i = 0; i < boids.size(); i++) {
+            Boid b = boids.get(i);
+            if (b.groupId == group && !b.isLeader) {
+                all.add(i);
+                double dx = b.x - lx, dy = b.y - ly;
+                if (Math.sqrt(dx * dx + dy * dy) <= LEADER_RADIUS) {
+                    inRadius.add(i);
+                }
+            }
+        }
+        List<Integer> pool = inRadius.isEmpty() ? all : inRadius;
+        if (pool.isEmpty()) return;
+        // Pick closest from pool to old leader position
+        int bestIdx = -1;
+        double bestDist = Double.MAX_VALUE;
+        for (int idx : pool) {
+            Boid b = boids.get(idx);
+            double dx = b.x - lx, dy = b.y - ly;
+            double dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < bestDist) { bestDist = dist; bestIdx = idx; }
+        }
+        if (bestIdx < 0) return;
+        boids.get(bestIdx).isLeader = true;
+        if (group == 0) leader0 = bestIdx;
+        else            leader1 = bestIdx;
     }
 
     // Called after boid list is modified to fix leader indices
@@ -134,6 +160,7 @@ public class MigrationSim {
     public void forceSwitch() {
         activeNode = 1 - activeNode;
         nodeTimer  = 0;
+        for (Node n : nodes) { n.boosted[0] = false; n.boosted[1] = false; }
     }
 
     public void setSpeedMult(double mult) {
@@ -160,6 +187,8 @@ public class MigrationSim {
         if (nodeTimer >= NODE_SWITCH_INTERVAL) {
             activeNode = 1 - activeNode;
             nodeTimer  = 0;
+            nodes[activeNode].boosted[0] = false;
+            nodes[activeNode].boosted[1] = false;
         }
 
         Node target = nodes[activeNode];
@@ -167,36 +196,44 @@ public class MigrationSim {
 
         // --- Move boids ---
         for (Boid b : boids) {
-            if (b.isLeader) {
-                // Leader steers toward active node
-                b.steerToward(target.x, target.y, 0.15);
-                b.applySeparation(boids, SEPARATION_DIST, 0.45);
-                b.avoidObstacles(obstacles, 50, 0.6);
-                b.applyEdgeTurning(width, height, EDGE_MARGIN, EDGE_TURN);
-                b.clampSpeed(spd * 1.1);
-            } else {
-                // Find own group's leader
-                int li = (b.groupId == 0) ? leader0 : leader1;
-                if (li >= 0 && li < boids.size()) {
-                    Boid leader = boids.get(li);
-                    double d = b.distanceTo(leader);
-                    if (d < LEADER_RADIUS) {
-                        b.steerToward(leader.x, leader.y, 0.10);
-                    }
-                }
-                // All boids gently drawn to target node regardless
-                double distToTarget = b.distanceTo(target.x, target.y);
-                if (distToTarget > SAFE_RADIUS) {
-                    b.steerToward(target.x, target.y, 0.03);
-                }
-                b.applySeparation(boids, SEPARATION_DIST, 0.45);
-                b.avoidObstacles(obstacles, 50, 0.6);
-                b.applyEdgeTurning(width, height, EDGE_MARGIN, EDGE_TURN);
-                b.clampSpeed(spd);
-            }
-            b.move();
-            b.resolveObstacleCollision(obstacles);
+            // Fix 4: Boids inside active safe node get strong centering pull and no separation
+            if (target.contains(b.x, b.y)) {
+                // Find which node they're in and pull toward its center
+                b.steerToward(target.x, target.y, 0.4);
+                b.clampSpeed(spd * 0.3);
+                b.move();
+                b.resolveObstacleCollision(obstacles);
+                continue;
         }
+
+        if (b.isLeader) {
+            b.steerToward(target.x, target.y, 0.15 * speedMult);
+            b.applySeparation(boids, SEPARATION_DIST, 0.45 * speedMult);
+            b.avoidObstacles(obstacles, 50, 0.6 * speedMult);
+            b.applyEdgeTurning(width, height, EDGE_MARGIN, EDGE_TURN * speedMult);
+            b.clampSpeed(spd * 1.1);
+        } else {
+            int li = (b.groupId == 0) ? leader0 : leader1;
+            if (li >= 0 && li < boids.size()) {
+                Boid leader = boids.get(li);
+                double d = b.distanceTo(leader);
+                double effectiveRadius = LEADER_RADIUS * speedMult;
+                if (d < effectiveRadius) {
+                    b.steerToward(leader.x, leader.y, 0.10 * speedMult);
+                }
+            }
+            double distToTarget = b.distanceTo(target.x, target.y);
+            if (distToTarget > SAFE_RADIUS) {
+                b.steerToward(target.x, target.y, 0.03 * speedMult);
+            }
+            b.applySeparation(boids, SEPARATION_DIST, 0.45 * speedMult);
+            b.avoidObstacles(obstacles, 50, 0.6 * speedMult);
+            b.applyEdgeTurning(width, height, EDGE_MARGIN, EDGE_TURN * speedMult);
+            b.clampSpeed(spd);
+        }
+        b.move();
+        b.resolveObstacleCollision(obstacles);
+    }
 
         // --- Death mechanic ---
         deathAccum += dt;
@@ -217,25 +254,27 @@ public class MigrationSim {
     }
 
     private void applyDeaths(Node target) {
+        double oldLeader0x = -1, oldLeader0y = -1;
+        double oldLeader1x = -1, oldLeader1y = -1;
+        boolean leader0Died = false, leader1Died = false;
+
         List<Boid> toRemove = new ArrayList<>();
         for (Boid b : boids) {
-            boolean atNode  = isAtSafeNode(b);
-            if (atNode) continue; // safe zone = no death
-
+            if (isAtSafeNode(b)) continue;
             boolean nearLeader = isNearOwnLeader(b);
             double deathChance = nearLeader ? DEATH_INSIDE : DEATH_OUTSIDE;
-
-            if (Math.random() < deathChance) {
-                toRemove.add(b);
-            }
+            if (Math.random() < deathChance) toRemove.add(b);
         }
         for (Boid b : toRemove) {
             if (b.isLeader) {
-                // Will be reassigned after reindex
+                if (b.groupId == 0) { oldLeader0x = b.x; oldLeader0y = b.y; leader0Died = true; }
+                else                { oldLeader1x = b.x; oldLeader1y = b.y; leader1Died = true; }
                 b.isLeader = false;
             }
         }
         boids.removeAll(toRemove);
+        if (leader0Died && countGroup(0) > 0) assignNewLeader(0, oldLeader0x, oldLeader0y);
+        if (leader1Died && countGroup(1) > 0) assignNewLeader(1, oldLeader1x, oldLeader1y);
     }
 
     private boolean isAtSafeNode(Boid b) {
@@ -252,9 +291,8 @@ public class MigrationSim {
     }
 
     public void checkPopulationBoost(Node target) {
-        // Count how many of each group are at the target node
-        int[] total   = {0, 0};
-        int[] atNode  = {0, 0};
+        int[] total  = {0, 0};
+        int[] atNode = {0, 0};
         for (Boid b : boids) {
             total[b.groupId]++;
             if (target.contains(b.x, b.y)) atNode[b.groupId]++;
@@ -262,14 +300,14 @@ public class MigrationSim {
         for (int g = 0; g < 2; g++) {
             if (total[g] == 0) continue;
             double frac = (double) atNode[g] / total[g];
-            if (frac >= 0.80) {
-                int toAdd = (int) Math.round(total[g] * 0.5); // +50% = x1.5 total
-                Node home = nodes[activeNode];
+            if (frac >= 0.80 && !target.boosted[g]) {
+                target.boosted[g] = true;
+                int toAdd = (int) Math.round(total[g] * 0.5);
                 for (int i = 0; i < toAdd; i++) {
                     double angle = Math.random() * Math.PI * 2;
                     double r     = Math.random() * (SAFE_RADIUS - 10) + 5;
-                    double bx    = home.x + Math.cos(angle) * r;
-                    double by    = home.y + Math.sin(angle) * r;
+                    double bx    = target.x + Math.cos(angle) * r;
+                    double by    = target.y + Math.sin(angle) * r;
                     boids.add(new Boid(bx, by, false, g));
                 }
             }
