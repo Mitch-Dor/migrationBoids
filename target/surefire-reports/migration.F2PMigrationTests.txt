@@ -1,0 +1,40 @@
+-------------------------------------------------------------------------------
+Test set: migration.F2PMigrationTests
+-------------------------------------------------------------------------------
+Tests run: 3, Failures: 3, Errors: 0, Skipped: 0, Time elapsed: 0.124 s <<< FAILURE! -- in migration.F2PMigrationTests
+migration.F2PMigrationTests.testPopulationBoostOnlyOnceFix -- Time elapsed: 0.061 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: Population should not increase on second boost call (boosted=30) ==> expected: <30> but was: <45>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
+	at org.junit.jupiter.api.AssertEquals.failNotEqual(AssertEquals.java:197)
+	at org.junit.jupiter.api.AssertEquals.assertEquals(AssertEquals.java:150)
+	at org.junit.jupiter.api.Assertions.assertEquals(Assertions.java:563)
+	at migration.F2PMigrationTests.testPopulationBoostOnlyOnceFix(F2PMigrationTests.java:35)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+migration.F2PMigrationTests.testFollowersKeepUpAtHighSpeed -- Time elapsed: 0.017 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: Followers fell too far behind at high speed. Avg dist low=70.20 high=491.30 ratio=7.00 (must be < 2.0) ==> expected: <true> but was: <false>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
+	at org.junit.jupiter.api.AssertTrue.failNotTrue(AssertTrue.java:63)
+	at org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:36)
+	at org.junit.jupiter.api.Assertions.assertTrue(Assertions.java:214)
+	at migration.F2PMigrationTests.testFollowersKeepUpAtHighSpeed(F2PMigrationTests.java:99)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+migration.F2PMigrationTests.testLeaderReassignmentFromNearbyBoids -- Time elapsed: 0.008 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: Nearby boid should receive leadership in all runs (won 0/5) ==> expected: <5> but was: <0>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
+	at org.junit.jupiter.api.AssertEquals.failNotEqual(AssertEquals.java:197)
+	at org.junit.jupiter.api.AssertEquals.assertEquals(AssertEquals.java:150)
+	at org.junit.jupiter.api.Assertions.assertEquals(Assertions.java:563)
+	at migration.F2PMigrationTests.testLeaderReassignmentFromNearbyBoids(F2PMigrationTests.java:81)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+

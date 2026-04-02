@@ -1,8 +1,8 @@
 ## Running Docker
 
 ```bash
-docker build -t notecard-env .
+docker build -t migration-env .
 ```
 ```bash
-docker run -it notecard-env
+docker run -it migration-env
 ```

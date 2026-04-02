@@ -1,4 +1,4 @@
 -------------------------------------------------------------------------------
-Test set: NotecardAppTest
+Test set: migration.P2PMigrationTests
 -------------------------------------------------------------------------------
-Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.110 s -- in NotecardAppTest
+Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.047 s -- in migration.P2PMigrationTests
