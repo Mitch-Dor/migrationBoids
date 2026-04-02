@@ -290,17 +290,18 @@ public class P2PMigrationTest {
  
         for (int step = 0; step < 120; step++) {
             // Snapshot positions before step
-            double[] prevX = new double[boids.size()];
-            double[] prevY = new double[boids.size()];
-            for (int i = 0; i < boids.size()-1; i++) {
+            int countBefore = boids.size();
+            double[] prevX = new double[countBefore];
+            double[] prevY = new double[countBefore];
+            for (int i = 0; i < countBefore; i++) {
                 prevX[i] = boids.get(i).x;
                 prevY[i] = boids.get(i).y;
             }
  
             sim.step(0.016);
  
-            // Check each boid's displacement this step
-            for (int i = 0; i < boids.size()-1; i++) {
+            // Check each boid's displacement this step (BUT ONLY THE BOIDS THAT IT DIDNT SPAWN IN)
+            for (int i = 0; i < countBefore; i++) {
                 Boid b = boids.get(i);
                 double dx = b.x - prevX[i];
                 double dy = b.y - prevY[i];
