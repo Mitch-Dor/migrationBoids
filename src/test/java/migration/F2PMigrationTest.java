@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
 
-public class F2PMigrationTests {
+public class F2PMigrationTest {
 
     // -------------------------------------------------------------------------
     // Test 1: checkPopulationBoost should only trigger once per node visit
@@ -66,7 +66,7 @@ public class F2PMigrationTests {
             sim.reindexLeaders();
             boids.remove(leader);
             sim.reindexLeaders();
-            sim.assignNewLeader(0);
+            sim.assignNewLeader(0, lx, ly);
             sim.reindexLeaders();
 
             int newLeaderIdx = sim.getLeader0();
@@ -142,5 +142,47 @@ public class F2PMigrationTests {
         }
  
         return count > 0 ? total / count : Double.MAX_VALUE;
+    }
+
+    // -------------------------------------------------------------------------
+    // Test 4: Boids inside an ACTIVE node's safe area never leave
+    //
+    // Once a boid has reached the active node's safe area, it should be locked
+    // in and never pushed out by separation or other forces.
+    // -------------------------------------------------------------------------
+    @Test
+    void testBoidsStayInActiveSafeArea() {
+        MigrationSim sim = new MigrationSim();
+        Node activeNode = sim.getNodes()[sim.getActiveNode()];
+ 
+        List<Boid> boids = sim.getBoids();
+        boids.clear();
+ 
+        // Pack ~30 boids into the active node's safe area
+        int count = 30;
+        for (int i = 0; i < count; i++) {
+            double angle = Math.random() * Math.PI * 2;
+            double r = Math.random() * activeNode.safeRadius * 0.85;
+            boids.add(new Boid(
+                activeNode.x + Math.cos(angle) * r,
+                activeNode.y + Math.sin(angle) * r,
+                false, 0
+            ));
+        }
+ 
+        sim.reindexLeaders();
+ 
+        // Run ~2 simulated seconds
+        // no boid should ever be pushed outside the safe area
+        for (int i = 0; i < 120; i++) {
+            sim.step(0.016);
+ 
+            long outside = boids.stream()
+                .filter(b -> !activeNode.contains(b.x, b.y))
+                .count();
+ 
+            assertEquals(0, outside,
+                "At step " + i + ", " + outside + " boid(s) were pushed outside the active node's safe area");
+        }
     }
 }

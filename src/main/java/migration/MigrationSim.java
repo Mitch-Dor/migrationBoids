@@ -100,6 +100,11 @@ public class MigrationSim {
         else            leader1 = idx;
     }
 
+    // lx and ly are old leader's coordinates
+    public void assignNewLeader(int group, double lx, double ly) {
+        
+    }
+
     // Called after boid list is modified to fix leader indices
     public void reindexLeaders() {
         leader0 = -1;

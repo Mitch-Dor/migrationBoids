@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.util.ArrayList;
 import java.util.List;
 
-public class P2PMigrationTests {
+public class P2PMigrationTest {
 
     // -------------------------------------------------------------------------
     // Test 1: Each group has exactly one leader after init
@@ -198,6 +198,130 @@ public class P2PMigrationTests {
 
         assertTrue(diffAfter < diffBefore,
             String.format("Boid angle should move closer to node (before=%.3f after=%.3f)", diffBefore, diffAfter));
+    }
+
+    // -------------------------------------------------------------------------
+    // Test 9: Boids inside an INACTIVE node's safe area are not locked in place
+    //
+    // If a node is not the current target, boids inside it should still be free
+    // to move out — they shouldn't be pinned just because they're in a safe area.
+    // -------------------------------------------------------------------------
+    @Test
+    void testBoidsNotLockedInInactiveSafeArea() {
+        MigrationSim sim = new MigrationSim();
+ 
+        // Use the inactive node
+        int inactiveIdx = 1 - sim.getActiveNode();
+        Node inactiveNode = sim.getNodes()[inactiveIdx];
+ 
+        List<Boid> boids = sim.getBoids();
+        boids.clear();
+ 
+        // Place 10 boids inside the inactive node, all pointing directly away from it
+        int count = 10;
+        for (int i = 0; i < count; i++) {
+            double angle = (2 * Math.PI / count) * i;
+            Boid b = new Boid(
+                inactiveNode.x + Math.cos(angle) * (inactiveNode.safeRadius * 0.5),
+                inactiveNode.y + Math.sin(angle) * (inactiveNode.safeRadius * 0.5),
+                false, 0
+            );
+            // Point away from node center so natural movement exits the area
+            b.vx = Math.cos(angle) * 1.2;
+            b.vy = Math.sin(angle) * 1.2;
+            boids.add(b);
+        }
+ 
+        sim.reindexLeaders();
+ 
+        // Run long enough for boids to drift out if free to do so
+        for (int i = 0; i < 120; i++) sim.step(0.016);
+ 
+        long stillInside = boids.stream()
+            .filter(b -> inactiveNode.contains(b.x, b.y))
+            .count();
+ 
+        // At least some boids should have left — if all 10 are still inside,
+        // they are being incorrectly retained by the inactive node
+        assertTrue(stillInside < count,
+            "Boids should be free to leave an inactive node's safe area, " +
+            "but all " + count + " are still inside");
+    }
+
+    // -------------------------------------------------------------------------
+    // Test: Boids inside an active safe area move smoothly — no teleporting
+    //
+    // Verifies that the safe area retention is implemented via force adjustment
+    // (weak repulsion + attraction toward center) rather than hard position
+    // resets or barriers. Checks that no boid moves more than a physically
+    // plausible distance in a single step, and that boids are always moving
+    // (i.e. attraction toward center hasn't frozen them in place).
+    // -------------------------------------------------------------------------
+    @Test
+    void testBoidsMoveSmoothlyInActiveSafeArea() {
+        MigrationSim sim = new MigrationSim();
+        sim.setSpeedMult(1.0);
+        Node activeNode = sim.getNodes()[sim.getActiveNode()];
+ 
+        List<Boid> boids = sim.getBoids();
+        boids.clear();
+ 
+        int count = 30;
+        for (int i = 0; i < count; i++) {
+            double angle = Math.random() * Math.PI * 2;
+            double r = Math.random() * activeNode.safeRadius * 0.85;
+            boids.add(new Boid(
+                activeNode.x + Math.cos(angle) * r,
+                activeNode.y + Math.sin(angle) * r,
+                false, 0
+            ));
+        }
+ 
+        sim.reindexLeaders();
+ 
+        // Max plausible distance per step at speedMult=1.0.
+        // BASE_SPEED=1.2, clamp max is 1.1x for leaders — followers capped at 1.2.
+        // With a dt of 0.016 and no exotic forces, no boid should jump more than
+        // a small multiple of that. We use 10x as a generous teleport threshold.
+        double maxPlausibleStepDist = 1.2 * 10;
+ 
+        double totalMovement = 0;
+        int    movementSamples = 0;
+ 
+        for (int step = 0; step < 120; step++) {
+            // Snapshot positions before step
+            double[] prevX = new double[boids.size()];
+            double[] prevY = new double[boids.size()];
+            for (int i = 0; i < boids.size()-1; i++) {
+                prevX[i] = boids.get(i).x;
+                prevY[i] = boids.get(i).y;
+            }
+ 
+            sim.step(0.016);
+ 
+            // Check each boid's displacement this step
+            for (int i = 0; i < boids.size()-1; i++) {
+                Boid b = boids.get(i);
+                double dx = b.x - prevX[i];
+                double dy = b.y - prevY[i];
+                double dist = Math.sqrt(dx * dx + dy * dy);
+ 
+                assertTrue(dist <= maxPlausibleStepDist,
+                    String.format("Boid teleported at step %d: moved %.2f units in one frame " +
+                        "(max plausible=%.2f). Position was (%.1f,%.1f) now (%.1f,%.1f)",
+                        step, dist, maxPlausibleStepDist,
+                        prevX[i], prevY[i], b.x, b.y));
+ 
+                totalMovement += dist;
+                movementSamples++;
+            }
+        }
+ 
+        // Sanity check: boids should still be moving on average, not frozen
+        double avgStepDist = totalMovement / movementSamples;
+        assertTrue(avgStepDist > 0.05,
+            String.format("Boids appear frozen — avg movement per step was %.4f. " +
+                "Attraction to node center may be too strong.", avgStepDist));
     }
 
     private double angleDiff(double a, double b) {
